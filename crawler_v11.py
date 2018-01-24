@@ -134,7 +134,7 @@ class cmpyinfo_crawler:
     
     #proxy = proxypool()
     
-    def __init__(self, qryCond='', qryType='', pageStart=1, pageEnd=1, path_phantomjs = '/usr/local/Cellar/phantomjs/2.1.1/bin/phantomjs', logname = 'task.log', sleep_scale = 'small'):
+    def __init__(self, qryCond='', qryType='', pageStart=1, pageEnd=1, path_phantomjs = '/usr/local/Cellar/phantomjs/2.1.1/bin/phantomjs', logname = 'task.log', sleep_scale='small'):
         self.path_phantomjs = path_phantomjs
         self.session = None
         self.pageStart = pageStart 
@@ -161,6 +161,7 @@ class cmpyinfo_crawler:
         self.banKey = None
         self.estbId = None
         self.objectId = None
+        self.objectId64 = None
         
         self.querytype = None
         #self.cmpy_type = None
@@ -184,7 +185,7 @@ class cmpyinfo_crawler:
         #self.tick = 300
         
         #self.proxy_pool = [{'http':'proxy.hinet.net:80'}, None]
-        self.proxypool = proxypool.proxypool(none_freq = 2, path_phantomjs=path_phantomjs)
+        self.proxypool = proxypool.proxypool(path_phantomjs=path_phantomjs)
         self.proxy_ratio = 5 # 5 proxies vs 1 None
         self.proxy_i = 0
         self.proxy = None
@@ -199,12 +200,10 @@ class cmpyinfo_crawler:
         
         self.totalPage = 1
         self.totalCount = 1
-        self.flush_threshold = 1000
+        self.flush_threshold = 20
         self.total_json_name = "all_json_out"
-        
-        self.sleep_scale = sleep_scale
- 
-        
+
+        self.search_error_cnt = 0
         
         
         # self.trlog = back_log(flush=False, flush_threshold=1, first_line='',logformat='', fname ='')
@@ -242,6 +241,7 @@ class cmpyinfo_crawler:
         #self.flush_threshold = 20;
         
         self.exception_happened = False
+        self.sleep_scale = sleep_scale 
         
         
         
@@ -275,8 +275,15 @@ class cmpyinfo_crawler:
         return prefix + self.timestr(self.this_round_end - self.this_round_sta)
 
     def get_banKey_objectId(self, attri):
+        def objectId_base64(objectId):
+            import base64
+            b_objectId = str.encode(objectId) # str to byte str
+            encoded_b_objectId = base64.b64encode(b_objectId)
+            return encoded_b_objectId.decode('utf8')
+            
         # 必須透過objectId來決定要如何填入header
         self.objectId = (attri.replace("javascript:qryDetail('","")).replace("', true);return false;","")
+        self.objectId64 = objectId_base64(self.objectId)
         self.querytype = self.objectId[0:2]
         #self.cmpy_type = cmpyinfo_crawler.cmpy_type_dict[self.querytype]
         
@@ -475,9 +482,7 @@ class cmpyinfo_crawler:
             self.change_proxy()
             return False
 
-
-
-        
+       
         try:
             selector = etree.HTML(self.response.content)
         except Exception as err:
@@ -488,7 +493,7 @@ class cmpyinfo_crawler:
             self.tasklog.log_flush()
             self.change_proxy()
             return False
-        
+       
         # reCaptcha 測試
         try:
             recaptcha = selector.xpath('//div[@class="g-recaptcha"]')
@@ -504,21 +509,24 @@ class cmpyinfo_crawler:
             return False
         except Exception as err:
             self.exception_happened = True
-            self.tasklog.log(mode='manual', in_log = "Exception @ first_connection()")
+            self.tasklog.log(mode='manual', in_log = "Exception from recaptcha@ first_connection()")
             print(err.__doc__)
             self.tasklog.log(mode='manual', in_log = err.__doc__)
             self.tasklog.log_flush()
             self.change_proxy()
             return False
 
-       
+        
         # 同一統編可有多個結果
-        hrefs = selector.xpath('//*[@id="vParagraph"]/div[@class="panel panel-default"]/div[@class="panel-heading companyName"]/a')
+        #hrefs = selector.xpath('//*[@id="vParagraph"]/div[@class="panel panel-default"]/div[@class="panel-heading companyName"]/a')
+        hrefs = selector.xpath('//*[@id="vParagraph"]/div[@class="panel panel-default"]/div[2]/span')
         del self.oncontextmenu
         self.oncontextmenu = list()
         for h in hrefs:
-            if h.attrib['oncontextmenu'] not in self.oncontextmenu:
+            #if h.attrib['oncontextmenu'] not in self.oncontextmenu:
+            if 'oncontextmenu' in h.attrib and h.attrib['oncontextmenu'] not in self.oncontextmenu:
                 self.oncontextmenu.append(h.attrib['oncontextmenu'])
+
 
         try:
             if not self.oncontextmenu:
@@ -526,6 +534,7 @@ class cmpyinfo_crawler:
             else:
                 return True
         except CmpyinfoCrawlerError as ccerr:
+            self.search_error_cnt = self.search_error_cnt + 1
             self.exception_happened = True
             self.tasklog.log(mode='manual', in_log = "Exception @ first_connection()")
             print(ccerr)
@@ -541,6 +550,7 @@ class cmpyinfo_crawler:
             self.tasklog.log_flush()
             self.change_proxy()
             return False
+
                
         
     def second_connection(self):
@@ -551,7 +561,7 @@ class cmpyinfo_crawler:
             'brBanNo':str(self.brBanNo),
             'banKey':str(self.banKey),
             'estbId':str(self.estbId),
-            'objectId':str(self.objectId),
+            'objectId':str(self.objectId64),
             'CPage':'',
             'brCmpyPage':'',
             'eng':'',
@@ -643,6 +653,7 @@ class cmpyinfo_crawler:
         return True
             
 
+
     def proxy_monitor(self):
         if self.proxy_tick < 0:
             return
@@ -651,32 +662,32 @@ class cmpyinfo_crawler:
         if self.end - self.pooling > self.proxy_tick:
             self.change_proxy()
             self.pooling = time.time()
-            
     
     def renew_poroxypool(self):
         self.proxypool.reset_proxy()
+        # 更新proxypool，先拿亞洲，拿不到就拿全世界
         try:
-            self.proxypool.asia_proxy()
+            self.proxypool.group_proxy()
             if len(self.proxypool.proxy_set) == 0:
                 raise CmpyinfoCrawlerError('ResolveProxyError', self.sta)
         except CmpyinfoCrawlerError as cerr:
             self.exception_happened = True
-            self.tasklog.log(mode='manual', in_log = "Can not resolve proxy from proxypool.asia_proxy(), retry proxypool.world_proxy()")
+            self.tasklog.log(mode='manual', in_log = "Can not resolve proxy from proxypool.group _proxy(), retry proxypool.group_proxy()")
             print(ccerr)
             self.tasklog.log(mode='manual', in_log = str(ccerr))
             self.tasklog.log_flush()
             
             try:
-                self.proxypool.world_proxy()
+                self.proxypool.group_proxy()
                 if len(self.proxypool.proxy_set) == 0:
                     raise CmpyinfoCrawlerError('ResolveProxyError', self.sta)                
             except:
                 self.exception_happened = True
-                self.tasklog.log(mode='manual', in_log = "Can not resolve proxy from proxypool.world_proxy(), you can only use local ip")
+                self.tasklog.log(mode='manual', in_log = "Can not resolve proxy from proxypool.group_proxy(), you can only use local ip")
                 print(ccerr)
                 self.tasklog.log(mode='manual', in_log = str(ccerr))
                 self.tasklog.log_flush()
-                return
+                return False
             
                 
         #self.proxypool.filter_proxy()
@@ -698,7 +709,6 @@ class cmpyinfo_crawler:
         #ratio = 5 # 5 proxies vs 1 None
         #import random
         #self.proxy_list = self.proxypool.proxy_list self.proxy_list[0]
-        
         if not self.proxypool.proxy_set:
             self.renew_poroxypool()
         
@@ -708,7 +718,7 @@ class cmpyinfo_crawler:
         #else:  
         #    p = {'http':self.proxypool.random_choice_one_proxy()}
         p = self.proxypool.random_choice_one_proxy_with_none_freq()
-        print('p :', p)
+        
         self.set_proxy(p)
         #self.proxy_update = True
         
@@ -716,6 +726,7 @@ class cmpyinfo_crawler:
 
     def random_sleep(self, scale = 'small'):
         import random
+
         #            15%   20%     20%     10% 15%   20%   
         sleeptime = [1,1,1,2,2,2,2,3,3,3,3,4,4,5,5,5,6,6,6,6]
         #            15%               35%                  15%               15%            5%    15%   
@@ -738,16 +749,22 @@ class cmpyinfo_crawler:
 
 
         
+        m = random.choice(magnitude)
+        b = random.choice(basetime)        
         s = random.choice(sleeptime)
         if scale == 'small':
-            s *= 0.25
+            s *= 1
+            b *= 0.25
+            m *= 0.75
         if scale == 'midium':
             s *= 6
+            b *= 0.75
+            m *= 0.75
         if scale == 'large':
             s *= 12
+            b *= 1
+            m *= 1 
             
-        m = random.choice(magnitude)
-        b = random.choice(basetime)
         time.sleep(b+m*s)
             
     def print_html(self):
@@ -917,10 +934,10 @@ class cmpyinfo_crawler:
             else:
                 self.set_form_data_url1(mode = 0)
               
-            # 在first_connection刷完一頁(20筆)，檢查一次是否超過30分鐘，若是就關掉舊的session，並轉到proxy
+            # 在first_connection刷完一頁(20筆)，檢查一次是否超過self.proxy_tick，若是就關掉舊的session，並轉到proxy
             self.proxy_monitor()
             
-            # self.first_connection()
+            # self.first_connection() 出問題時重試10次
             retry = 0
             while not self.first_connection():
                 if retry > 10:
@@ -930,7 +947,7 @@ class cmpyinfo_crawler:
                 
                 retry += 1
                 self.tasklog.log(mode='manual', in_log = 'first_connection() @ page{} failed, retry {} times'.format(self.pageNow, retry))
-                time.sleep(10)
+                time.sleep(2)
                 
             for self.pageItem, o in enumerate(self.oncontextmenu, 1):
                 #self.pageItem = i
@@ -1026,7 +1043,7 @@ class cmpyinfo_crawler:
             self.results = defaultdict(list)
             item_last = item_count
             
-        return self.results
+        #return self.results
 
 
 # In[6]:
