@@ -10,8 +10,9 @@ job_name：當初預計開6台雲端機器，每台同時要跑2個job，所以�
 phantomjs_path：phantomjs安裝後執行檔路徑  
 subtask：由於一個job可能有上萬筆搜尋，每一筆搜尋給予一個流水號subtask，如此當job發生中斷，可以填入接下來想要的起始subtask接續執行  
 
-python crawler_v10x2.py 1 /usr/local/bin/phantomjs 0  
-python crawler_v10x2.py 1.x /usr/local/bin/phantomjs 052041  
+範例：  
+python crawler_v10x2.py 1 /usr/local/bin/phantomjs 0  
+python crawler_v10x2.py 1.x /usr/local/bin/phantomjs 052041  
 python crawler_v10x2.py 2 /usr/local/bin/phantomjs 104081  
 python crawler_v10x2.py 2.x /usr/local/bin/phantomjs 156121  
 python crawler_v10x2.py 3 /usr/local/bin/phantomjs 208161  
@@ -29,8 +30,10 @@ python crawler_v11.py phamtomjs_path
 由於所有的job都在script中了，所以直接執行即可，若要切不同的job可以複製多個script，個但每個script給予不同的關鍵字  
 
 參數說明：  
-phantomjs_path：phantomjs安裝後執行檔路徑  
+phantomjs_path：phantomjs安裝後執行檔路徑  
 
+範例：  
+python crawler_v10x2.py 1 /usr/local/bin/phantomjs  
 
 ### environment
 python 3.6  
