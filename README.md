@@ -11,8 +11,8 @@ phantomjs_path：phantomjs安裝後執行檔路徑
 subtask：由於一個job可能有上萬筆搜尋，每一筆搜尋給予一個流水號subtask，如此當job發生中斷，可以填入接下來想要的起始subtask接續執行  
 
 範例：  
-python crawler_v10x2.py 1 /usr/local/bin/phantomjs 0  
-python crawler_v10x2.py 1.x /usr/local/bin/phantomjs 052041  
+python crawler_v10x2.py 1 /usr/local/bin/phantomjs 0  
+python crawler_v10x2.py 1.x /usr/local/bin/phantomjs 052041  
 python crawler_v10x2.py 2 /usr/local/bin/phantomjs 104081  
 python crawler_v10x2.py 2.x /usr/local/bin/phantomjs 156121  
 python crawler_v10x2.py 3 /usr/local/bin/phantomjs 208161  
