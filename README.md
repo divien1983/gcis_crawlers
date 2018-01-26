@@ -33,7 +33,7 @@ python crawler_v11.py phamtomjs_path
 phantomjs_path：phantomjs安裝後執行檔路徑  
 
 範例：  
-python crawler_v10x2.py 1 /usr/local/bin/phantomjs  
+python crawler_v11.py /usr/local/bin/phantomjs  
 
 ### environment
 python 3.6  
