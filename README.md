@@ -46,3 +46,5 @@ urllib3        1.21.1
 lxml           3.6.4  
 fake-useragent 0.1.7  
 beautifulsoup4 4.5.1  
+
+https://www.youtube.com/watch?v=kWTDPmSXoyc&feature=youtu.be
